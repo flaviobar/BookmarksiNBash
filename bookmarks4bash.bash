@@ -107,21 +107,88 @@ __bb_list(){
 
 
 
+
 bb(){
-    local list dirpath bookmark badd
-    list=0
-    badd=0
-    bdel=0
     while getopts ':a:d:f:hl' opt ; do
 	case $opt in
 	    h) __bb_printUsage ; return $? ;;
 	    l) list=1 ;;
-	    f) BBMARKSFILE=${OPTARG} ;;
-	    a) badd=1 ; dirpath=${OPTARG} ;;
-	    d) bdel=1 ; dirpath=${OPTARG} ;;
 	esac
     done
     shift $(($OPTIND - 1))
     bookmark=$1
     (( badd )) && (( bdel ))
 }
+
+valid_optarg(){
+    ## invalid OPTARG if it begins with a dash
+    # (( ${#OPTARG} > 1 )) && [[ ${OPTARG:0:1} == '-' ]] && {
+    [[ ${OPTARG:0:1} == '-' ]] && {
+	OPTARG=$opt
+	((OPTIND-=1))
+	opt=":"
+	return 1
+    }
+    return 0
+}
+
+bb(){
+    OPTIND=1
+    local list dirpath bookmark badd
+    list=0
+    badd=0
+    bdel=0
+
+    while getopts ':adf:hl' opt ; do
+    # while getopts ':a:bcd:-' opt ; do
+	i=1
+	while (( i )) ; do
+	    i=0
+	    case $opt in
+		
+		# interpreting double dash as the end of the options
+		# a) valid_optarg && {
+		# 	 echo argomento valido  $opt ${OPTIND} ${OPTARG} ; } || {
+		# 	 echo argomento non valido $opt $OPTIND $OPTARG ; i=1 ; continue ; }
+		#  ;;
+		# b is an option with an optional argument
+		# b) zz=${@:$OPTIND:1} ;
+		#    [[ ${zz:0:1} != '-' ]] && {
+		#        OPTARG=$zz
+		#        ((OPTIND+=1))
+		#    }
+		#    echo $opt $OPTIND $OPTARG
+		#    ;;
+		# c) echo $opt $OPTIND $OPTARG
+		#    ;;
+		# d) echo $opt $OPTIND $OPTARG
+		#    ;;
+		# -) break 2
+		#    ;;
+		# \:) echo opzione -${OPTARG} necessita di argomento obligatorio
+		#     return 1
+		#     ;;
+		# \?) echo opzione -${OPTARG} inesistente && return 1 ;
+
+		h) __bb_printUsage
+		   return $?
+		   ;;
+		l) list=1
+		   ;;
+		a) echo optional
+		   ;;
+		d) echo optional
+		   ;;
+		-) break 2
+		   ;;
+		\:) echo opzione -${OPTARG} necessita di argomento obligatorio
+		    return 1
+		    ;;
+		\?) echo opzione -${OPTARG} inesistente && return 1 ;
+	    esac
+	done
+    done
+    shift $(($OPTIND - 1))
+    echo finale $@;
+}
+
