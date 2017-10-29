@@ -6,7 +6,7 @@ __bb_printUsage () {
     prog=${0#*/}
     local msg
     readarray msg <<EOF
-    .Usage: $prog [-l] [-a [/dir/path]] [-d [/dir/path]] [-f bmark_file] [bookmark]
+    .Usage: $prog [-l] [-a [/dir/path]] [-d [/dir/path]] [bookmark]
     .
     .Without any option the command goto the directory pointed by the bookmark.
     .
@@ -14,7 +14,6 @@ __bb_printUsage () {
     .
     .  -h              show this usage message, then exit
     .  -l              list defined bookmarks
-    .  -f bmark_file   use alternative bookmark file (default: ${BBMARKSFILE})
     .  -a [/dir/path]  add a bookmark to the list of bookmarks
     .  -d [/dir/path]  delete a bookmark
 EOF
@@ -27,7 +26,6 @@ EOF
 }
 
 declare -A _Bstore
-
 
 __bb_load_bookmarks(){
     local line
@@ -64,9 +62,17 @@ __bb_ask4overwrite(){
 }
 
 __bb_writefile(){
-    rm ${BBMARKSFILE}
+    local fst=1
+    [[ -z ${!_Bstore[*]} ]] && {
+	: > ${BBMARKSFILE}
+	return 0
+    }
     for k in ${!_Bstore[@]} ; do
-	echo ${k} ${_Bstore[$k]} >> ${BBMARKSFILE}
+	(( fst )) && {
+	    echo ${k} ${_Bstore[$k]} > ${BBMARKSFILE}
+	    fst=0 ;\
+	} ||
+	    echo ${k} ${_Bstore[$k]} >> ${BBMARKSFILE}
     done
 }
 
@@ -88,10 +94,13 @@ __bb_del(){
 
 __bb_goto(){
     local bm  bmark=$1
+    __bb_search_key ${bmark} || return 1
+    [[ -d ${bmark} ]] || return 2
+    [[ -x ${bmark} ]] || return 3
     for bm in ${!_Bstore[@]} ; do
-	[[ ${bmark} == ${bm} ]] && cd ${_Bstore[$bm]} && return 0
+	[[ ${bmark} == ${bm} ]] && cd ${_Bstore[$bm]} && break
     done
-    return 1
+    return 0
 }
 
 __bb_list(){
@@ -105,25 +114,11 @@ __bb_list(){
     fi
 }
 
-
-
-
-bb(){
-    while getopts ':a:d:f:hl' opt ; do
-	case $opt in
-	    h) __bb_printUsage ; return $? ;;
-	    l) list=1 ;;
-	esac
-    done
-    shift $(($OPTIND - 1))
-    bookmark=$1
-    (( badd )) && (( bdel ))
-}
-
 valid_optarg(){
     ## invalid OPTARG if it begins with a dash
     # (( ${#OPTARG} > 1 )) && [[ ${OPTARG:0:1} == '-' ]] && {
     [[ ${OPTARG:0:1} == '-' ]] && {
+	echo "Argument of -${opt} option cannot begin with -" 
 	OPTARG=$opt
 	((OPTIND-=1))
 	opt=":"
@@ -134,18 +129,13 @@ valid_optarg(){
 
 bb(){
     OPTIND=1
-    local list dirpath bookmark badd
-    list=0
-    badd=0
-    bdel=0
-
-    while getopts ':adf:hl' opt ; do
+    local llist=0 ladd=0 ldel=0 i nexpos toadd todel 
+    while getopts ':adhl-' opt ; do
     # while getopts ':a:bcd:-' opt ; do
 	i=1
 	while (( i )) ; do
 	    i=0
 	    case $opt in
-		
 		# interpreting double dash as the end of the options
 		# a) valid_optarg && {
 		# 	 echo argomento valido  $opt ${OPTIND} ${OPTARG} ; } || {
@@ -169,26 +159,73 @@ bb(){
 		#     return 1
 		#     ;;
 		# \?) echo opzione -${OPTARG} inesistente && return 1 ;
-
+		
 		h) __bb_printUsage
 		   return $?
 		   ;;
-		l) list=1
+		l) llist=1
 		   ;;
-		a) echo optional
+		a) ladd=1
+		   nexpos=${@:$OPTIND:1}
+		   [[ ${nexpos:0:1} != '-' ]] && {
+		       toadd=${nexpos}
+		       (( OPTIND+=1 ))
+		   }
 		   ;;
-		d) echo optional
+		d) ldel=1
+		   nexpos=${@:$OPTIND:1}
+		   [[ ${nexpos:0:1} != '-' ]] && {
+		       todel=${nexpos}
+		       (( OPTIND+=1 ))
+		   }
 		   ;;
+		# f) valid_optarg && {
+		# 	 laltfile=1
+		# 	 newBfile=${OPTARG}
+		#      } || { i=1 ; continue ; }
+		#    ;;
 		-) break 2
 		   ;;
-		\:) echo opzione -${OPTARG} necessita di argomento obligatorio
+		\:) echo "Option -${OPTARG} needs a mandatory (valid) argument"
 		    return 1
 		    ;;
-		\?) echo opzione -${OPTARG} inesistente && return 1 ;
+		\?) echo "Opzion -${OPTARG} doesn't exist" && return 1 ;
 	    esac
 	done
     done
+    if (( llist+ladd+ldel > 1 )) ; then
+	echo "Options -a, -d and -l are mutually exclusive. Only one of these can be used at once"
+	return 2
+    fi
     shift $(($OPTIND - 1))
-    echo finale $@;
+    
+    (( llist )) && __bb_list && return 0
+
+    (( ${#@} > 1 )) &&
+	echo "Only one positional argument allowed, using the first one"
+    
+    nexpos=$1
+    
+    if (( ladd )) ; then
+	if [[ ${toadd} == '-' ]] ; then
+	    [[ -z ${nexpos} ]] && {
+		return
+	    }
+	elif [[ ${toadd} != '-' ]] ; then
+	    :
+	fi
+    elif (( ldel )) ; then
+	if [[ ${toadd} == '-' ]] ; then
+	    [[ -z ${nexpos} ]] && {
+		
+		return
+	    }
+	elif [[ ${toadd} != '-' ]] ; then
+	    :
+	fi
+    else
+	__bb_goto ${nexpos} ||
+	    echo -e ' '"${nexpos}  ${_Bstore[nextpos]}\n Bookmark or destination doesn't exist"
+    fi
 }
 
