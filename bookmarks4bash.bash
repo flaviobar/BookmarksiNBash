@@ -205,14 +205,30 @@ bb(){
 	echo "Only one positional argument allowed, using the first one"
     
     nexpos=$1
+
+    toadd=${toadd:-'-'}
+    todel=${todel:-'-'}
     
     if (( ladd )) ; then
+	# __bb_add $bookmark $path
 	if [[ ${toadd} == '-' ]] ; then
-	    [[ -z ${nexpos} ]] && {
-		return
-	    }
+	    # here if -a without parameter
+	    if [[ -z ${nexpos} ]] ; then
+		# without $1
+		__bb_add ${PWD##/} ${PWD}
+	    else
+		__bb_add  ${PWD}
+		return 0
+	    fi
 	elif [[ ${toadd} != '-' ]] ; then
-	    :
+	    # here if -a with parameter
+	    if [[ -z ${nexpos} ]] ; then
+		# without $1
+		__bb_add ${toadd} ${PWD}
+	    else
+		__bb_add  ${PWD}
+		return 0
+	    fi
 	fi
     elif (( ldel )) ; then
 	if [[ ${toadd} == '-' ]] ; then
@@ -229,3 +245,15 @@ bb(){
     fi
 }
 
+# appunti di ffunzionamento
+### bb -a               aggiunge pwd ai bookmark e lo chiama ${PWD##/}
+### bb -a pippo         aggiunge pwd ai bookmark e lo chiama pippo
+### bb -a -- path       aggiunge path ai bookmark e lo chiama ${path##/}
+### bb -a pippo path aggiunge path ai bookmark e lo chiama ${pippo##/}
+
+### bb -d               elimina PWD dai bookmark se c'è
+### bb -d pippo         elimina pippo dai bookmark se c'è
+### bb -d -- path       elimina path se presente e notifica il nome trovato
+### bb -d pippo path    cerca nome pippo o path ed elimina quello che prova, previa notifica
+
+### bb pippo            va al nome pippo (più avanti cerca pippo nei path registrati, chiede e va)
