@@ -2,6 +2,10 @@
 [[ -z ${BASH_VERSION} ]] && echo 'You are not running a bash version' && exit 1
 BBMARKSFILE="~/.b4brc"
 
+__to_stderr(){
+    echo "$*" >&2 ;
+}
+
 __bb_printUsage () {
     prog=${0#*/}
     local msg
@@ -26,6 +30,10 @@ EOF
 }
 
 declare -A _Bstore
+declare __bb_reply
+
+[[ -r ${BBMARKSFILE} ]] || : > ${BBMARKSFILE}
+__bb_load_bookmarks ${BBMARKSFILE}
 
 __bb_load_bookmarks(){
     local line
@@ -54,6 +62,15 @@ __bb_search_key(){
     return 1
 }
 
+__bb_search_val(){
+    local val=$1
+    local k
+    for k in ${!_Bstore[@]} ; do
+	[[ ${!_Bstore[k]} == ${val} ]] && __bb_reply=$k && return 0
+    done
+    return 1
+}
+
 __bb_ask4overwrite(){
     local overwrite
     read -e -N 1 -p 'Bookmark already exists, overwrite?([yY]/[nN]) ' overwrite
@@ -62,35 +79,52 @@ __bb_ask4overwrite(){
 }
 
 __bb_writefile(){
-    local fst=1
-    [[ -z ${!_Bstore[*]} ]] && {
-	: > ${BBMARKSFILE}
-	return 0
-    }
+    : > ${BBMARKSFILE}    
     for k in ${!_Bstore[@]} ; do
-	(( fst )) && {
-	    echo ${k} ${_Bstore[$k]} > ${BBMARKSFILE}
-	    fst=0 ;\
-	} ||
 	    echo ${k} ${_Bstore[$k]} >> ${BBMARKSFILE}
     done
 }
 
-[[ -r ${BBMARKSFILE} ]] && __bb_load_bookmarks ${BBMARKSFILE}
+__bb_list(){
+    local bm ll strmax=0
+    for bm in ${ll:=${!_Bstore[@]}} ; do
+	(( strmax < ${#bm} )) && strmax=${#bm}
+    done
+    (( strmax+=2 ))
+    for bm in ${ll} ; do
+	printf " %-${strmax}s%s\n" $bm ${_Bstore[$bm]};
+    fi
+}
 
 __bb_add(){
     local bookmark=$1
     local path=$2
-    local found=''
+    [[ -d ${path} ]] && [[ -x ${path} ]] ||
+	{ __to_stderr "Path of destination doesn't exist or is not reacheble, bookmark not created" ; return 1 }
     __bb_search_key ${bookmark} &&
-	! __bb_ask4overwrite || { ${_Bstore[$bookmark]}=${path} && _writefile }
+	! __bb_ask4overwrite || { ${_Bstore[$bookmark]}=${path} && __bb_writefile }
 }
 
 __bb_del(){
     local bookmark=$1
     __bb_search_key ${bookmark} && { unset ${_Bstore[$bookmark]} && __bb_writefile } ||
-	    echo "Bookmark does not exist"
-} 
+	 { __to_stderr "Bookmark does not exist" ; return 1 ; }
+}
+
+__bb_del_path(){
+    local path=$1 tmp
+    __bb_search_val ${path}
+    tmp=$?
+    if (( tmp )) ; then
+	__to_stderr "${path} not found in bookmarks"
+	return $tmp
+    else
+	echo "Deleting bookmark"
+	__bb_list __bb_reply
+	__bb_del __bb_reply
+	__bb_reply=
+    fi
+}
 
 __bb_goto(){
     local bm  bmark=$1
@@ -103,22 +137,11 @@ __bb_goto(){
     return 0
 }
 
-__bb_list(){
-    local bm strmax=0
-    for bm in ${!_Bstore[@]} ; do
-	(( strmax < ${#bm} )) && strmax=${#bm}
-    done
-    (( strmax+=2 ))
-    for bm in ${!_Bstore[@]} ; do
-	printf " %-${strmax}s%s\n" $bm ${_Bstore[$bm]};
-    fi
-}
-
 valid_optarg(){
     ## invalid OPTARG if it begins with a dash
     # (( ${#OPTARG} > 1 )) && [[ ${OPTARG:0:1} == '-' ]] && {
     [[ ${OPTARG:0:1} == '-' ]] && {
-	echo "Argument of -${opt} option cannot begin with -" 
+	__to_stderr "Argument of -${opt} option cannot begin with -" 
 	OPTARG=$opt
 	((OPTIND-=1))
 	opt=":"
@@ -129,7 +152,7 @@ valid_optarg(){
 
 bb(){
     OPTIND=1
-    local llist=0 ladd=0 ldel=0 i nexpos toadd todel 
+    local llist=0 ladd=0 ldel=0 i nexpos toadd todel tmp
     while getopts ':adhl-' opt ; do
     # while getopts ':a:bcd:-' opt ; do
 	i=1
@@ -186,23 +209,23 @@ bb(){
 		#    ;;
 		-) break 2
 		   ;;
-		\:) echo "Option -${OPTARG} needs a mandatory (valid) argument"
+		\:) __to_stderr "Option -${OPTARG} needs a mandatory (valid) argument"
 		    return 1
 		    ;;
-		\?) echo "Opzion -${OPTARG} doesn't exist" && return 1 ;
+		\?) __to_stderr "Opzion -${OPTARG} doesn't exist" && return 1 ;
 	    esac
 	done
     done
     if (( llist+ladd+ldel > 1 )) ; then
-	echo "Options -a, -d and -l are mutually exclusive. Only one of these can be used at once"
+	__to_stderr "Options -a, -d and -l are mutually exclusive. Only one of these can be used at once"
 	return 2
     fi
     shift $(($OPTIND - 1))
     
-    (( llist )) && __bb_list && return 0
+    (( llist )) && __bb_list $@ && return 0
 
     (( ${#@} > 1 )) &&
-	echo "Only one positional argument allowed, using the first one"
+	__to_stderr "Only one positional argument allowed, using the first one"
     
     nexpos=$1
 
@@ -215,33 +238,44 @@ bb(){
 	    # here if -a without parameter
 	    if [[ -z ${nexpos} ]] ; then
 		# without $1
-		__bb_add ${PWD##/} ${PWD}
+		__bb_add ${PWD##/} ${PWD} || return $?
 	    else
-		__bb_add  ${PWD}
-		return 0
+		__bb_add ${nexpos##/} ${nexpos} || return $?
 	    fi
-	elif [[ ${toadd} != '-' ]] ; then
+	else
 	    # here if -a with parameter
 	    if [[ -z ${nexpos} ]] ; then
 		# without $1
-		__bb_add ${toadd} ${PWD}
+		__bb_add ${toadd} ${PWD} || return $?
 	    else
-		__bb_add  ${PWD}
-		return 0
+		__bb_add ${toadd} ${nexpos} || return $?
 	    fi
 	fi
     elif (( ldel )) ; then
-	if [[ ${toadd} == '-' ]] ; then
-	    [[ -z ${nexpos} ]] && {
-		
-		return
-	    }
-	elif [[ ${toadd} != '-' ]] ; then
-	    :
+	if [[ ${todel} == '-' ]] ; then
+	    # here if -d without parameter
+	    nexpos=${nexpos:-${PWD}}
+	    __bb_del_path ${nexpos}
+	    # if [[ -z ${nexpos} ]] ; then
+	    # 	__bb_del_path ${PWD}
+	    # else
+	    # 	__bb_del_path ${nexpos}
+	    # fi
+	else
+	    # here if -d with parameter
+	    if [[ -z ${nexpos} ]] ; then
+		__bb_del ${todel}
+	    else
+		[[ ${_Bstore[todel]} == ${nexpos} ]] && __bb_del ${todel} || {
+			__to_stderr "There is no bookmark ${todel} that point to ${nexpos}"
+			return 1
+		    }
+	    fi
 	fi
     else
 	__bb_goto ${nexpos} ||
-	    echo -e ' '"${nexpos}  ${_Bstore[nextpos]}\n Bookmark or destination doesn't exist"
+	    { __to_stderr -e ' '"${nexpos}  ${_Bstore[nextpos]}\n Bookmark or destination doesn't exist" ;
+	      return 1 ; }
     fi
 }
 
@@ -254,6 +288,8 @@ bb(){
 ### bb -d               elimina PWD dai bookmark se c'è
 ### bb -d pippo         elimina pippo dai bookmark se c'è
 ### bb -d -- path       elimina path se presente e notifica il nome trovato
-### bb -d pippo path    cerca nome pippo o path ed elimina quello che prova, previa notifica
+### bb -d pippo path    elimina pippo ma solo se punta a path
+
+### bb -l [bmark1] ...  list bookmarks, showing paths
 
 ### bb pippo            va al nome pippo (più avanti cerca pippo nei path registrati, chiede e va)
