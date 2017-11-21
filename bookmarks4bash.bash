@@ -102,9 +102,9 @@ __bb_add(){
     local path=$2
     [[ -d ${path} ]] && [[ -x ${path} ]] ||
 	{ __to_stderr "Path of destination doesn't exist or is not reacheble, bookmark not created" ; return 1 ; }
-    pushd ${path}
+    pushd ${path} > /dev/null
     path=${PWD}
-    popd
+    popd > /dev/null
     __bb_search_key ${bookmark} && 
 	! __bb_ask4overwrite || { _Bstore[$bookmark]=${path} && __bb_writefile ; }
 }
@@ -242,9 +242,8 @@ bb(){
 	if [[ ${toadd} == '-' ]] ; then
 	    # here if -a without parameter
 	    nexpos=${nexpos:-${PWD}}
+	    [[ ${nexpos} =~ (.*)/$ ]] && nexpos=${BASH_REMATCH[1]}
 	    __bb_add ${nexpos##*/} ${nexpos} || return $?
-	    ## BACO lo slash finale in $1 in caso di aggiunta con nome automatico lo incasina
-	    
 	    # if [[ -z ${nexpos} ]] ; then
 	    # 	# without $1
 	    # 	__bb_add ${PWD##*/} ${PWD} || return $?
@@ -272,8 +271,9 @@ bb(){
 	    if [[ -z ${nexpos} ]] ; then
 		__bb_del ${todel} || return $?
 	    else
+		[[ ${nexpos} =~ (.*)/$ ]] && nexpos=${BASH_REMATCH[1]}
 		[[ ${_Bstore[$todel]} == ${nexpos} ]] && __bb_del ${todel} || {
-			__to_stderr "There is no bookmark ${todel} that point to ${nexpos}"
+			__to_stderr "There is no bookmark ${todel} pointing to ${nexpos}"
 			return 1
 		    }
 	    fi
