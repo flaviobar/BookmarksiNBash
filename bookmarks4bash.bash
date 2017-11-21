@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+
 [[ -z ${BASH_VERSION} ]] && echo 'You are not running a bash version' && exit 1
 BBMARKSFILE="${HOME}/.bash_bookmarks"
 
@@ -101,7 +101,7 @@ __bb_add(){
     local bookmark=$1
     local path=$2
     [[ -d ${path} ]] && [[ -x ${path} ]] ||
-	{ __to_stderr "Path of destination doesn't exist or is not reacheble, bookmark not created" ; return 1 ; }
+	{ __to_stderr "Path of destination doesn't exist or is not reachable, bookmark not created" ; return 1 ; }
     pushd ${path} > /dev/null
     path=${PWD}
     popd > /dev/null
