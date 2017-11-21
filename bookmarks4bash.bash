@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 [[ -z ${BASH_VERSION} ]] && echo 'You are not running a bash version' && exit 1
-BBMARKSFILE="~/.b4brc"
+BBMARKSFILE="${HOME}/.bash_bookmarks"
 
 __to_stderr(){
-    echo "$*" >&2 ;
+    echo -e "$*" >&2
 }
 
 __bb_printUsage () {
@@ -32,16 +32,13 @@ EOF
 declare -A _Bstore
 declare __bb_reply
 
-[[ -r ${BBMARKSFILE} ]] || : > ${BBMARKSFILE}
-__bb_load_bookmarks ${BBMARKSFILE}
-
 __bb_load_bookmarks(){
     local line
     local key
     local value
-    exec 6<$1
+    exec 4<$1
     set -f ## disable pathname expansion
-    while IFS=' ' read -r -u 6 key value || [[ -n "${key}" ]] ; do
+    while IFS=' ' read -u 4 -r key value || [[ -n "${key}" ]] ; do
 	[[ ${key} =~ ^[[:blank:]]*$ ]] && continue        # skip blank lines
 	[[ ${key} =~ ^[[:blank:]]*#.* ]] && continue  # skip comment lines
 	[[ "${value}" =~ ^[[:blank:]]*#.* ]] && continue
@@ -49,9 +46,12 @@ __bb_load_bookmarks(){
 	_Bstore[$key]=${value}
     done
     set +f
-    exec 6>&-
+    exec 4>&-
     unset IFS
 }
+
+[[ -r ${BBMARKSFILE} ]] || : > ${BBMARKSFILE}
+__bb_load_bookmarks ${BBMARKSFILE}
 
 __bb_search_key(){
     local key=$1
@@ -66,7 +66,7 @@ __bb_search_val(){
     local val=$1
     local k
     for k in ${!_Bstore[@]} ; do
-	[[ ${!_Bstore[k]} == ${val} ]] && __bb_reply=$k && return 0
+	[[ ${!_Bstore[$k]} == ${val} ]] && __bb_reply=$k && return 0
     done
     return 1
 }
@@ -81,7 +81,7 @@ __bb_ask4overwrite(){
 __bb_writefile(){
     : > ${BBMARKSFILE}    
     for k in ${!_Bstore[@]} ; do
-	    echo ${k} ${_Bstore[$k]} >> ${BBMARKSFILE}
+	echo ${k} ${_Bstore[$k]} >> ${BBMARKSFILE}
     done
 }
 
@@ -91,24 +91,28 @@ __bb_list(){
 	(( strmax < ${#bm} )) && strmax=${#bm}
     done
     (( strmax+=2 ))
+    [[ $1 ]] && ll=$@
     for bm in ${ll} ; do
-	printf " %-${strmax}s%s\n" $bm ${_Bstore[$bm]};
-    fi
+	printf " %-${strmax}s%s\n" $bm ${_Bstore[$bm]}
+    done
 }
 
 __bb_add(){
     local bookmark=$1
     local path=$2
     [[ -d ${path} ]] && [[ -x ${path} ]] ||
-	{ __to_stderr "Path of destination doesn't exist or is not reacheble, bookmark not created" ; return 1 }
-    __bb_search_key ${bookmark} &&
-	! __bb_ask4overwrite || { ${_Bstore[$bookmark]}=${path} && __bb_writefile }
+	{ __to_stderr "Path of destination doesn't exist or is not reacheble, bookmark not created" ; return 1 ; }
+    pushd ${path}
+    path=${PWD}
+    popd
+    __bb_search_key ${bookmark} && 
+	! __bb_ask4overwrite || { _Bstore[$bookmark]=${path} && __bb_writefile ; }
 }
 
 __bb_del(){
     local bookmark=$1
-    __bb_search_key ${bookmark} && { unset ${_Bstore[$bookmark]} && __bb_writefile } ||
-	 { __to_stderr "Bookmark does not exist" ; return 1 ; }
+    __bb_search_key ${bookmark} && { unset _Bstore[$bookmark] && __bb_writefile ; } ||
+	{ __to_stderr "Bookmark does not exist" ; return 1 ; }
 }
 
 __bb_del_path(){
@@ -129,12 +133,12 @@ __bb_del_path(){
 __bb_goto(){
     local bm  bmark=$1
     __bb_search_key ${bmark} || return 1
-    [[ -d ${bmark} ]] || return 2
-    [[ -x ${bmark} ]] || return 3
+    [[ -d ${_Bstore[$bmark]} ]] || return 2
+    [[ -x ${_Bstore[$bmark]} ]] || return 3
     for bm in ${!_Bstore[@]} ; do
-	[[ ${bmark} == ${bm} ]] && cd ${_Bstore[$bm]} && break
+	[[ ${bmark} == ${bm} ]] && cd ${_Bstore[$bm]} && return 0
     done
-    return 0
+    return 1
 }
 
 valid_optarg(){
@@ -150,7 +154,7 @@ valid_optarg(){
     return 0
 }
 
-bb(){
+bnb(){
     OPTIND=1
     local llist=0 ladd=0 ldel=0 i nexpos toadd todel tmp
     while getopts ':adhl-' opt ; do
@@ -212,7 +216,8 @@ bb(){
 		\:) __to_stderr "Option -${OPTARG} needs a mandatory (valid) argument"
 		    return 1
 		    ;;
-		\?) __to_stderr "Opzion -${OPTARG} doesn't exist" && return 1 ;
+		\?) __to_stderr "Opzion -${OPTARG} doesn't exist" && return 1
+		    ;;
 	    esac
 	done
     done
@@ -236,60 +241,64 @@ bb(){
 	# __bb_add $bookmark $path
 	if [[ ${toadd} == '-' ]] ; then
 	    # here if -a without parameter
-	    if [[ -z ${nexpos} ]] ; then
-		# without $1
-		__bb_add ${PWD##/} ${PWD} || return $?
-	    else
-		__bb_add ${nexpos##/} ${nexpos} || return $?
-	    fi
+	    nexpos=${nexpos:-${PWD}}
+	    __bb_add ${nexpos##*/} ${nexpos} || return $?
+	    ## BACO lo slash finale in $1 in caso di aggiunta con nome automatico lo incasina
+	    
+	    # if [[ -z ${nexpos} ]] ; then
+	    # 	# without $1
+	    # 	__bb_add ${PWD##*/} ${PWD} || return $?
+	    # else
+	    # 	__bb_add ${nexpos##*/} ${nexpos} || return $?
+	    # fi
 	else
 	    # here if -a with parameter
-	    if [[ -z ${nexpos} ]] ; then
-		# without $1
-		__bb_add ${toadd} ${PWD} || return $?
-	    else
-		__bb_add ${toadd} ${nexpos} || return $?
-	    fi
+	    nexpos=${nexpos:-${PWD}}
+	    __bb_add ${toadd} ${nexpos} || return $?
+	    # if [[ -z ${nexpos} ]] ; then
+	    # 	# without $1
+	    # 	__bb_add ${toadd} ${PWD} || return $?
+	    # else
+	    # 	__bb_add ${toadd} ${nexpos} || return $?
+	    # fi
 	fi
     elif (( ldel )) ; then
 	if [[ ${todel} == '-' ]] ; then
 	    # here if -d without parameter
 	    nexpos=${nexpos:-${PWD}}
-	    __bb_del_path ${nexpos}
-	    # if [[ -z ${nexpos} ]] ; then
-	    # 	__bb_del_path ${PWD}
-	    # else
-	    # 	__bb_del_path ${nexpos}
-	    # fi
+	    __bb_del_path ${nexpos} || return $?
 	else
 	    # here if -d with parameter
 	    if [[ -z ${nexpos} ]] ; then
-		__bb_del ${todel}
+		__bb_del ${todel} || return $?
 	    else
-		[[ ${_Bstore[todel]} == ${nexpos} ]] && __bb_del ${todel} || {
+		[[ ${_Bstore[$todel]} == ${nexpos} ]] && __bb_del ${todel} || {
 			__to_stderr "There is no bookmark ${todel} that point to ${nexpos}"
 			return 1
 		    }
 	    fi
 	fi
     else
-	__bb_goto ${nexpos} ||
-	    { __to_stderr -e ' '"${nexpos}  ${_Bstore[nextpos]}\n Bookmark or destination doesn't exist" ;
-	      return 1 ; }
+	__bb_goto ${nexpos} || {
+	    __to_stderr ' '"${nexpos}  ${_Bstore[nextpos]}\n Bookmark or destination doesn't exist" 
+	    return 1
+	}
     fi
 }
 
-# appunti di ffunzionamento
-### bb -a               aggiunge pwd ai bookmark e lo chiama ${PWD##/}
-### bb -a pippo         aggiunge pwd ai bookmark e lo chiama pippo
-### bb -a -- path       aggiunge path ai bookmark e lo chiama ${path##/}
-### bb -a pippo path aggiunge path ai bookmark e lo chiama ${pippo##/}
+# appunti di funzionamento
+### bnb -a               aggiunge pwd ai bookmark e lo chiama ${PWD##/}
+### bnb -a pippo         aggiunge pwd ai bookmark e lo chiama pippo
+### bnb -a -- path       aggiunge path ai bookmark e lo chiama ${path##/}
+### bnb -a pippo path aggiunge path ai bookmark e lo chiama ${pippo##/}
 
-### bb -d               elimina PWD dai bookmark se c'è
-### bb -d pippo         elimina pippo dai bookmark se c'è
-### bb -d -- path       elimina path se presente e notifica il nome trovato
-### bb -d pippo path    elimina pippo ma solo se punta a path
+### bnb -d               elimina PWD dai bookmark se c'è
+### bnb -d pippo         elimina pippo dai bookmark se c'è
+### bnb -d -- path       elimina path se presente e notifica il nome trovato
+### bnb -d pippo path    elimina pippo ma solo se punta a path
 
-### bb -l [bmark1] ...  list bookmarks, showing paths
+### bnb -l [bmark1] ...  list bookmarks, showing paths
+### bnb pippo            va al nome pippo (più avanti cerca pippo nei path registrati, chiede e va)
 
-### bb pippo            va al nome pippo (più avanti cerca pippo nei path registrati, chiede e va)
+# TODO
+
