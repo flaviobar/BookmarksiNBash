@@ -154,7 +154,7 @@ valid_optarg(){
     return 0
 }
 
-bnb(){
+bb(){
     OPTIND=1
     local llist=0 ladd=0 ldel=0 i nexpos toadd todel tmp
     while getopts ':adhl-' opt ; do
