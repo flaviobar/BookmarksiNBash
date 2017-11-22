@@ -10,16 +10,37 @@ __bb_printUsage () {
     prog=${0#*/}
     local msg
     readarray msg <<EOF
-    .Usage: $prog [-l] [-a [/dir/path]] [-d [/dir/path]] [bookmark]
+    .Usage: $prog [-l] [-a [bookmark]] [-d [bookmark]] [/dir/path]
+    .       $prog bookmark
     .
     .Without any option the command goto the directory pointed by the bookmark.
+    . -- states for the end of the options.
     .
     .Options:
     .
     .  -h              show this usage message, then exit
     .  -l              list defined bookmarks
-    .  -a [/dir/path]  add a bookmark to the list of bookmarks
-    .  -d [/dir/path]  delete a bookmark
+    .  -a [bookmark]   add a bookmark to the list of bookmarks
+    .  -d [bookmark]   delete a bookmark
+    .
+    .Synopsis
+    .
+    . $prog -a               add $PWD to the bookmark list, naming it as ${PWD##/}
+    . $prog -a bmark         add $PWD to the bookmark list, naming it as bmark
+    . $prog -a -- path       add path to the bookmark list, naming it as ${path##/}
+    . $prog -a bmark path    add path to the bookmark list, naming it as bmark
+    .
+    . $prog -d               delete $PWD from the bookmark list
+    . $prog -d bmark         delete bmark from the bookmark list
+    . $prog -d -- path       delete path from the bookmark list, giving notification
+    .                           of the found name
+    . $prog -d bmark path    delete bmark from the bookmark list but only 
+    .                           if it points to path
+    .
+    . $prog -l [bmark1] ...  list bookmark[s], showing paths. Without parameters it 
+    .                           shows all defined bookmarks
+    .
+    . $prog bmark            go to bmark
 EOF
     shopt -s extglob
     printf '%s' "${msg[@]#+( ).}"
@@ -287,18 +308,18 @@ bb(){
 }
 
 # appunti di funzionamento
-### bnb -a               aggiunge pwd ai bookmark e lo chiama ${PWD##/}
-### bnb -a pippo         aggiunge pwd ai bookmark e lo chiama pippo
-### bnb -a -- path       aggiunge path ai bookmark e lo chiama ${path##/}
-### bnb -a pippo path aggiunge path ai bookmark e lo chiama ${pippo##/}
+### $prog -a               aggiunge pwd ai bookmark e lo chiama ${PWD##/}
+### $prog -a pippo         aggiunge pwd ai bookmark e lo chiama pippo
+### $prog -a -- path       aggiunge path ai bookmark e lo chiama ${path##/}
+### $prog -a pippo path aggiunge path ai bookmark e lo chiama ${pippo##/}
 
-### bnb -d               elimina PWD dai bookmark se c'è
-### bnb -d pippo         elimina pippo dai bookmark se c'è
-### bnb -d -- path       elimina path se presente e notifica il nome trovato
-### bnb -d pippo path    elimina pippo ma solo se punta a path
+### $prog -d               elimina PWD dai bookmark se c'è
+### $prog -d pippo         elimina pippo dai bookmark se c'è
+### $prog -d -- path       elimina path se presente e notifica il nome trovato
+### $prog -d pippo path    elimina pippo ma solo se punta a path
 
-### bnb -l [bmark1] ...  list bookmarks, showing paths
-### bnb pippo            va al nome pippo (più avanti cerca pippo nei path registrati, chiede e va)
+### $prog -l [bmark1] ...  list bookmarks, showing paths
+### $prog pippo            va al nome pippo (più avanti cerca pippo nei path registrati, chiede e va)
 
 # TODO
 
