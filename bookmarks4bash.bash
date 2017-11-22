@@ -7,7 +7,6 @@ __to_stderr(){
 }
 
 __bb_printUsage () {
-    prog=${0#*/}
     local msg
     readarray msg <<EOF
     .Usage: $prog [-l] [-a [bookmark]] [-d [bookmark]] [/dir/path]
@@ -25,12 +24,12 @@ __bb_printUsage () {
     .
     .Synopsis
     .
-    . $prog -a               add $PWD to the bookmark list, naming it as ${PWD##/}
-    . $prog -a bmark         add $PWD to the bookmark list, naming it as bmark
-    . $prog -a -- path       add path to the bookmark list, naming it as ${path##/}
+    . $prog -a               add \$PWD to the bookmark list, naming it as \${PWD##/}
+    . $prog -a bmark         add \$PWD to the bookmark list, naming it as bmark
+    . $prog -a -- path       add path to the bookmark list, naming it as \${path##/}
     . $prog -a bmark path    add path to the bookmark list, naming it as bmark
     .
-    . $prog -d               delete $PWD from the bookmark list
+    . $prog -d               delete \$PWD from the bookmark list
     . $prog -d bmark         delete bmark from the bookmark list
     . $prog -d -- path       delete path from the bookmark list, giving notification
     .                           of the found name
@@ -176,6 +175,7 @@ valid_optarg(){
 }
 
 bb(){
+    prog=${FUNCNAME[0]}
     OPTIND=1
     local llist=0 ladd=0 ldel=0 i nexpos toadd todel tmp
     while getopts ':adhl-' opt ; do
@@ -307,19 +307,6 @@ bb(){
     fi
 }
 
-# appunti di funzionamento
-### $prog -a               aggiunge pwd ai bookmark e lo chiama ${PWD##/}
-### $prog -a pippo         aggiunge pwd ai bookmark e lo chiama pippo
-### $prog -a -- path       aggiunge path ai bookmark e lo chiama ${path##/}
-### $prog -a pippo path aggiunge path ai bookmark e lo chiama ${pippo##/}
-
-### $prog -d               elimina PWD dai bookmark se c'è
-### $prog -d pippo         elimina pippo dai bookmark se c'è
-### $prog -d -- path       elimina path se presente e notifica il nome trovato
-### $prog -d pippo path    elimina pippo ma solo se punta a path
-
-### $prog -l [bmark1] ...  list bookmarks, showing paths
-### $prog pippo            va al nome pippo (più avanti cerca pippo nei path registrati, chiede e va)
 
 # TODO
 
