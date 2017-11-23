@@ -7,7 +7,7 @@ __to_stderr(){
 }
 
 __bb_printUsage () {
-    local msg
+    local msg code
     readarray msg <<EOF
     .Usage: $prog [-l] [-a [bookmark]] [-d [bookmark]] [/dir/path]
     .       $prog bookmark
@@ -21,6 +21,7 @@ __bb_printUsage () {
     .  -l              list defined bookmarks
     .  -a [bookmark]   add a bookmark to the list of bookmarks
     .  -d [bookmark]   delete a bookmark
+    .  -r              reset all bookmarks
     .
     .Synopsis
     .
@@ -40,6 +41,7 @@ __bb_printUsage () {
     .                           shows all defined bookmarks
     .
     . $prog bmark            go to bmark
+    .
 EOF
     shopt -s extglob
     printf '%s' "${msg[@]#+( ).}"
@@ -99,7 +101,7 @@ __bb_ask4overwrite(){
 }
 
 __bb_writefile(){
-    : > ${BBMARKSFILE}    
+    : > ${BBMARKSFILE}
     for k in ${!_Bstore[@]} ; do
 	echo ${k} ${_Bstore[$k]} >> ${BBMARKSFILE}
     done
@@ -133,6 +135,14 @@ __bb_del(){
     local bookmark=$1
     __bb_search_key ${bookmark} && { unset _Bstore[$bookmark] && __bb_writefile ; } ||
 	{ __to_stderr "Bookmark does not exist" ; return 1 ; }
+}
+
+__bb_reset(){
+    local bmark
+    for bmark in ${!_Bstore[@]} ; do
+	unset _Bstore[$bmark]
+    done
+    : > ${BBMARKSFILE}
 }
 
 __bb_del_path(){
@@ -177,8 +187,9 @@ valid_optarg(){
 bb(){
     prog=${FUNCNAME[0]}
     OPTIND=1
-    local llist=0 ladd=0 ldel=0 i nexpos toadd todel tmp
-    while getopts ':adhl-' opt ; do
+    local llist=0 ladd=0 ldel=0 lreset=0
+    local i nexpos toadd todel tmp sum opt
+    while getopts ':adhlr-' opt ; do
     # while getopts ':a:bcd:-' opt ; do
 	i=1
 	while (( i )) ; do
@@ -227,6 +238,8 @@ bb(){
 		       (( OPTIND+=1 ))
 		   }
 		   ;;
+		r) lreset=1
+		   ;;
 		# f) valid_optarg && {
 		# 	 laltfile=1
 		# 	 newBfile=${OPTARG}
@@ -237,18 +250,25 @@ bb(){
 		\:) __to_stderr "Option -${OPTARG} needs a mandatory (valid) argument"
 		    return 1
 		    ;;
-		\?) __to_stderr "Opzion -${OPTARG} doesn't exist" && return 1
+		\?) __to_stderr "Option -${OPTARG} doesn't exist" && return 1
 		    ;;
 	    esac
 	done
     done
-    if (( llist+ladd+ldel > 1 )) ; then
-	__to_stderr "Options -a, -d and -l are mutually exclusive. Only one of these can be used at once"
+    sum=$(( llist+ladd+ldel+lreset ))
+
+    (( sum+${#@} )) || { __bb_printUsage || return 1 ; }
+    
+    if (( sum > 1 )) ; then
+	__to_stderr "Options -a, -d, -l and -r are mutually exclusive. Only one of these can be used at once"
 	return 2
     fi
+    
     shift $(($OPTIND - 1))
     
     (( llist )) && __bb_list $@ && return 0
+
+    (( lreset )) && __bb_reset && return 0
 
     (( ${#@} > 1 )) &&
 	__to_stderr "Only one positional argument allowed, using the first one"
