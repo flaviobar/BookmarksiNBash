@@ -72,6 +72,12 @@ __bb_load_bookmarks(){
     unset IFS
 }
 
+__bb_reload_bmarks(){
+    unset _Bstore
+    declare -g -A _Bstore
+    __bb_load_bookmarks ${BBMARKSFILE}
+}
+
 [[ -r ${BBMARKSFILE} ]] || : > ${BBMARKSFILE}
 __bb_load_bookmarks ${BBMARKSFILE}
 
@@ -101,9 +107,10 @@ __bb_ask4overwrite(){
 }
 
 __bb_writefile(){
-    : > ${BBMARKSFILE}
+    local fle=$1
+    : > ${fle:=${BBMARKSFILE}}
     for k in ${!_Bstore[@]} ; do
-	echo ${k} ${_Bstore[$k]} >> ${BBMARKSFILE}
+	echo ${k} ${_Bstore[$k]} >> ${fle}
     done
 }
 
@@ -138,10 +145,9 @@ __bb_del(){
 }
 
 __bb_reset(){
-    local bmark
-    for bmark in ${!_Bstore[@]} ; do
-	unset _Bstore[$bmark]
-    done
+    __bb_writefile ${BBMARKSFILE}.bak
+    unset _Bstore
+    declare -g -A _Bstore
     : > ${BBMARKSFILE}
 }
 
@@ -265,6 +271,8 @@ bb(){
     fi
     
     shift $(($OPTIND - 1))
+    
+    __bb_reload_bmarks
     
     (( llist )) && __bb_list $@ && return 0
 
