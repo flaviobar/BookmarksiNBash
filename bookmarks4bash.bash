@@ -60,7 +60,8 @@ __bb_load_bookmarks(){
     local value
     exec 4<$1
     set -f ## disable pathname expansion
-    while IFS='|' read -u 4 -r key value || [[ -n "${key}" ]] ; do
+
+    while IFS=$'\t' read -u 4 -r key value || [[ -n "${key}" ]] ; do
         [[ "${key}" =~ ^[[:blank:]]*$ ]] && continue        # skip blank lines
         [[ "${key}" =~ ^[[:blank:]]*#.* ]] && continue  # skip comment lines
         [[ "${value}" =~ ^[[:blank:]]*#.* ]] && continue
@@ -110,7 +111,7 @@ __bb_writefile(){
     local fle="$1"
     : > ${fle:=${BBMARKSFILE}}
     for k in "${!_Bstore[@]}" ; do
-        echo "${k}|${_Bstore[$k]}" >> "${fle}"
+        echo -e "${k}\t${_Bstore[$k]}" >> "${fle}"
     done
 }
 
