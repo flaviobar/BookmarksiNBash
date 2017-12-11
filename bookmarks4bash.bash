@@ -176,7 +176,7 @@ __bb_goto(){
     [[ -d "${_Bstore[$bmark]}" ]] || return 2
     [[ -x "${_Bstore[$bmark]}" ]] || return 3
     for bm in "${!_Bstore[@]}" ; do
-        [[ "${bmark}" == "${bm}" ]] && cd "${_Bstore[$bm]}" && return 0
+        [[ "${bmark}" == "${bm}" ]] && { [[ "${PWD}" != "${_Bstore[$bm]}" ]] && cd "${_Bstore[$bm]}" || : ;} && return 0
     done
     return 1
 }
