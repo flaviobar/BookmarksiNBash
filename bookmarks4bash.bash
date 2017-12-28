@@ -1,5 +1,6 @@
 
-[[ -z ${BASH_VERSION} ]] && echo 'You are not running a bash version' && exit 1
+# [[ -z ${BASH_VERSION} ]] && echo 'You are not running a bash version' && exit 1
+
 BBMARKSFILE="${HOME}/.bash_bookmarks"
 
 __to_stderr(){
