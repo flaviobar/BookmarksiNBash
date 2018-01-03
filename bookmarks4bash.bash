@@ -146,6 +146,9 @@ __bb_del(){
 }
 
 __bb_reset(){
+    local deleteall
+    read -e -N 1 -p 'Do you really want to delete all the stored bookmarks?([yY]/[nN], default: N) ' deleteall
+    [[ ${deleteall} =~ ^[yY]$ ]] || return 0
     __bb_writefile ${BBMARKSFILE}.bak
     unset _Bstore
     declare -g -A _Bstore
