@@ -7,9 +7,9 @@ bookmark system
 
 Put in your ~/.bashrc:
 
-case $- in
-    *i*) [ ${BASH_VERSION%%.*} -ge 4 ] &&
-        . ${HOME}/src/BookmarksiNBash/bookmarks4bash.bash ;;
-esac
+    case $- in
+        *i*) [ ${BASH_VERSION%%.*} -ge 4 ] &&
+            . ${HOME}/src/BookmarksiNBash/bookmarks4bash.bash ;;
+    esac
 
 ~/.bashrc should be called in .profile file.
