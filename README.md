@@ -5,11 +5,13 @@ bookmark system
 
 # Installation
 
-Put in your ~/.bashrc:
+Take bookmarks4bash.bash and put in a directory that you like. (DIR_THAT_YOU_LIKE)
+
+Append in your ~/.bashrc:
 
     case $- in
         *i*) [ ${BASH_VERSION%%.*} -ge 4 ] &&
-            . ${HOME}/src/BookmarksiNBash/bookmarks4bash.bash ;;
+            . ${DIR_THAT_YOU_LIKE}/bookmarks4bash.bash ;;
     esac
 
 ~/.bashrc should be called in .profile file.
